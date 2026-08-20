@@ -1,0 +1,14 @@
+{
+  "name": "boccherini-haydn-timeline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Boccherini/Haydn timeline — offline artifact with automated PNG/PDF/SVG capture",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "serve": "npx http-server -p 8080 -o"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
