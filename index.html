@@ -84,7 +84,7 @@
             ["Boccherini", 1799, 6, "58"],
             ["Haydn", 1799, 2, "77"],
             ["Haydn", 1803, 0.5, "103"],
-            ["Boccherini", 1804, 2, "64"],
+            ["Boccherini", 1804, 1.25, "64"],
             ["Boccherini", "1805-05-28", 0, "died"],
             ["Haydn", "1809-05-31", 0, "died"]
         ];
@@ -236,6 +236,7 @@
         // Bars
         const barHeight = 16;
         const maxBarWidth = chartWidth / 2 - 160;
+        const maxCount = Math.max(...quartets.map(d => d[2]));
 
         quartets.forEach(d => {
             const composer = d[0];
@@ -244,7 +245,7 @@
             const opus = d[3];
 
             const y = yScale(year);
-            const barWidth = Math.min((count / 6) * maxBarWidth, maxBarWidth);
+            const barWidth = (count / maxCount) * maxBarWidth;
 
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             if (composer === 'Haydn') {
