@@ -119,6 +119,9 @@
             'Boccherini': '#F4C6B8'
         };
 
+        const maxBarWidth = chartWidth / 2 - 160;
+        const maxCount = Math.max(...quartets.map(d => d[2]));
+
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', width);
         svg.setAttribute('height', height);
@@ -139,19 +142,23 @@
         const centerX = margin.left + chartWidth / 2;
         const boccheriniOffset = 100;
 
+        // Each label is centered over its own bar column and tinted with the
+        // composer's bar color to tie the header to the data.
         const haydnLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        haydnLabel.setAttribute('x', centerX - 200);
+        haydnLabel.setAttribute('x', centerX - maxBarWidth / 2);
         haydnLabel.setAttribute('y', 150);
         haydnLabel.setAttribute('text-anchor', 'middle');
         haydnLabel.setAttribute('class', 'composer-label');
+        haydnLabel.setAttribute('style', `fill: ${colors['Haydn']}`);
         haydnLabel.textContent = 'Haydn';
         svg.appendChild(haydnLabel);
 
         const boccheriniLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        boccheriniLabel.setAttribute('x', centerX + boccheriniOffset + 200);
+        boccheriniLabel.setAttribute('x', centerX + boccheriniOffset + maxBarWidth / 2);
         boccheriniLabel.setAttribute('y', 150);
         boccheriniLabel.setAttribute('text-anchor', 'middle');
         boccheriniLabel.setAttribute('class', 'composer-label');
+        boccheriniLabel.setAttribute('style', `fill: ${colors['Boccherini']}`);
         boccheriniLabel.textContent = 'Boccherini';
         svg.appendChild(boccheriniLabel);
 
@@ -243,8 +250,6 @@
 
         // Bars
         const barHeight = 16;
-        const maxBarWidth = chartWidth / 2 - 160;
-        const maxCount = Math.max(...quartets.map(d => d[2]));
 
         quartets.forEach(d => {
             const composer = d[0];
@@ -303,17 +308,22 @@
             svg.appendChild(label);
         });
 
-        // Re-fit the viewBox to the actual ink: center the drawn content with
-        // equal margins on opposite sides (min `pad`), extended to the 9:16
-        // canvas. Keeps spacing balanced automatically as the data changes.
+        // Re-fit the viewBox to the drawn content, extended to the 9:16
+        // canvas. Horizontal centering anchors on the structural center (the
+        // spine midpoint) rather than the ink bounding box — Haydn's opus
+        // labels are wider than Boccherini's, and centering on ink would
+        // push the axis column visibly off-center. Vertical centering uses
+        // the ink bounds. Self-corrects as the data changes.
         const bbox = svg.getBBox();
         const pad = 40;
-        let vw = bbox.width + 2 * pad;
+        const cx = centerX + boccheriniOffset / 2;
+        const half = Math.max(cx - (bbox.x - pad), (bbox.x + bbox.width + pad) - cx);
+        let vw = 2 * half;
         let vh = bbox.height + 2 * pad;
         const aspect = width / height;
         if (vw / vh < aspect) vw = vh * aspect; else vh = vw / aspect;
         svg.setAttribute('viewBox',
-            `${bbox.x + bbox.width / 2 - vw / 2} ${bbox.y + bbox.height / 2 - vh / 2} ${vw} ${vh}`);
+            `${cx - vw / 2} ${bbox.y + bbox.height / 2 - vh / 2} ${vw} ${vh}`);
     </script>
 </body>
 </html>
