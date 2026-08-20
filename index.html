@@ -113,6 +113,12 @@
             'Boccherini': '#E27D60'
         };
 
+        // Lighter hue of each composer color, used for the division ticks.
+        const tickColors = {
+            'Haydn': '#B7D3F3',
+            'Boccherini': '#F4C6B8'
+        };
+
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', width);
         svg.setAttribute('height', height);
@@ -277,7 +283,7 @@
                 tick.setAttribute('x2', x);
                 tick.setAttribute('y1', y - barHeight/2);
                 tick.setAttribute('y2', y + barHeight/2);
-                tick.setAttribute('stroke', '#fff');
+                tick.setAttribute('stroke', tickColors[composer]);
                 tick.setAttribute('stroke-width', '3');
                 svg.appendChild(tick);
             }
@@ -285,14 +291,14 @@
             // Add opus label
             const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             if (composer === 'Haydn') {
-                label.setAttribute('x', centerX - barWidth - 15);
+                label.setAttribute('x', centerX - barWidth - 8);
                 label.setAttribute('text-anchor', 'end');
             } else {
-                label.setAttribute('x', centerX + boccheriniOffset + barWidth + 15);
+                label.setAttribute('x', centerX + boccheriniOffset + barWidth + 8);
                 label.setAttribute('text-anchor', 'start');
             }
-            label.setAttribute('y', y + 10);
-            label.setAttribute('style', 'font-size: 28px; fill: #333; font-weight: 600;');
+            label.setAttribute('y', y + 9);
+            label.setAttribute('style', 'font-size: 26px; fill: #333; font-weight: 600;');
             label.textContent = opus;
             svg.appendChild(label);
         });
