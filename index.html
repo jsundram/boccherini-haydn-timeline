@@ -119,9 +119,10 @@
         svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
         document.getElementById('chart').appendChild(svg);
 
-        // Title
+        // Title — anchored to the optical center (midpoint of the two axis
+        // spines), not the canvas center, so it reads as centered.
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        title.setAttribute('x', width / 2);
+        title.setAttribute('x', margin.left + chartWidth / 2 + 50);
         title.setAttribute('y', 90);
         title.setAttribute('text-anchor', 'middle');
         title.setAttribute('class', 'title');
