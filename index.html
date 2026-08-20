@@ -123,7 +123,7 @@
         // spines), not the canvas center, so it reads as centered.
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         title.setAttribute('x', margin.left + chartWidth / 2 + 50);
-        title.setAttribute('y', 90);
+        title.setAttribute('y', 70);
         title.setAttribute('text-anchor', 'middle');
         title.setAttribute('class', 'title');
         title.textContent = 'Quartet Chronology';
@@ -265,6 +265,23 @@
 
             svg.appendChild(rect);
 
+            // Division ticks: one segment per quartet, counted out from the
+            // spine, so a 6-quartet opus reads as 6 sub-bars.
+            const unit = maxBarWidth / maxCount;
+            for (let k = 1; k < count; k++) {
+                const x = composer === 'Haydn'
+                    ? centerX - k * unit
+                    : centerX + boccheriniOffset + k * unit;
+                const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                tick.setAttribute('x1', x);
+                tick.setAttribute('x2', x);
+                tick.setAttribute('y1', y - barHeight/2);
+                tick.setAttribute('y2', y + barHeight/2);
+                tick.setAttribute('stroke', '#fff');
+                tick.setAttribute('stroke-width', '3');
+                svg.appendChild(tick);
+            }
+
             // Add opus label
             const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             if (composer === 'Haydn') {
@@ -279,6 +296,18 @@
             label.textContent = opus;
             svg.appendChild(label);
         });
+
+        // Re-fit the viewBox to the actual ink: center the drawn content with
+        // equal margins on opposite sides (min `pad`), extended to the 9:16
+        // canvas. Keeps spacing balanced automatically as the data changes.
+        const bbox = svg.getBBox();
+        const pad = 40;
+        let vw = bbox.width + 2 * pad;
+        let vh = bbox.height + 2 * pad;
+        const aspect = width / height;
+        if (vw / vh < aspect) vw = vh * aspect; else vh = vw / aspect;
+        svg.setAttribute('viewBox',
+            `${bbox.x + bbox.width / 2 - vw / 2} ${bbox.y + bbox.height / 2 - vh / 2} ${vw} ${vh}`);
     </script>
 </body>
 </html>
