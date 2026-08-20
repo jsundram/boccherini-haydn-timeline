@@ -24,19 +24,20 @@ npx playwright install chromium
 npm run capture
 ```
 
-This measures the page's natural content size, reopens it at exactly that
-width, and writes to `output/`:
+The page centers the fixed-size 1080x1920 chart on a black background, so
+naive window screenshots letterbox it. The script instead finds the chart
+element itself (largest inline `<svg>`, or `--selector`), sizes the viewport
+to exactly its natural dimensions, and writes to `output/`:
 
-- `timeline.png` — full-page screenshot at 2x resolution
-- `timeline.svg` — each sizable inline `<svg>`, standalone with styles inlined
-- `timeline.pdf` — single-page PDF sized exactly to the content
-- `timeline-letter.pdf` — conventional paginated US-Letter PDF
+- `timeline.png` — the chart alone at 2x resolution (2160x3840)
+- `timeline.svg` — the chart as a standalone vector, page styles inlined
+- `timeline.pdf` — single-page PDF sized exactly to the chart
 
 Options:
 
 ```sh
-node capture.mjs --width 1600   # force a specific capture width
-node capture.mjs --scale 3      # higher-res PNG (default 2)
+node capture.mjs --selector "#chart"   # explicit capture target
+node capture.mjs --scale 3             # higher-res PNG (default 2)
 node capture.mjs --file other.html
 ```
 

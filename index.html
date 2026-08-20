@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>String Quartets Timeline</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #chart {
+            background: #fff;
+            width: 100%;
+            max-width: 1080px;
+            aspect-ratio: 9/16;
+        }
+        .axis-label {
+            font-size: 32px;
+            fill: #333;
+            font-weight: 500;
+        }
+        .composer-label {
+            font-size: 48px;
+            font-weight: 700;
+            fill: #000;
+        }
+        .bar {
+            cursor: pointer;
+        }
+        .marker-text {
+            font-size: 28px;
+            fill: #666;
+            font-weight: 600;
+        }
+        .title {
+            font-size: 64px;
+            font-weight: 800;
+            fill: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+
+    <script>
+        const data = [
+            ["Haydn", "1732-03-31", 0, "born"],
+            ["Boccherini", "1743-02-19", 0, "born"],
+            ["Haydn", 1758, 10, "1/2"],
+            ["Boccherini", 1761, 6, "2"],
+            ["Boccherini", 1768, 6, "8"],
+            ["Haydn", 1769, 6, "9"],
+            ["Boccherini", 1770, 6, "9"],
+            ["Haydn", 1771, 6, "17"],
+            ["Boccherini", 1772, 6, "15"],
+            ["Haydn", 1772, 6, "20"],
+            ["Boccherini", 1775, 6, "22"],
+            ["Boccherini", 1777, 6, "24"],
+            ["Boccherini", 1778, 6, "26"],
+            ["Boccherini", 1780, 6, "32"],
+            ["Boccherini", 1781, 6, "33"],
+            ["Haydn", 1781, 6, "33"],
+            ["Haydn", 1785, 1, "42"],
+            ["Boccherini", 1787, 1, "39"],
+            ["Haydn", 1787, 6, "50"],
+            ["Boccherini", 1788, 2, "41"],
+            ["Haydn", 1788, 6, "54/55"],
+            ["Boccherini", 1789, 2, "42"],
+            ["Boccherini", 1790, 2, "43"],
+            ["Haydn", 1790, 6, "64"],
+            ["Boccherini", 1792, 6, "44"],
+            ["Haydn", 1793, 6, "71/74"],
+            ["Boccherini", 1794, 6, "48"],
+            ["Boccherini", 1795, 4, "52"],
+            ["Boccherini", 1796, 6, "53"],
+            ["Haydn", 1797, 6, "76"],
+            ["Boccherini", 1799, 6, "58"],
+            ["Haydn", 1799, 2, "77"],
+            ["Haydn", 1803, 0.5, "103"],
+            ["Boccherini", 1804, 2, "64"],
+            ["Boccherini", "1805-05-28", 0, "died"],
+            ["Haydn", "1809-05-31", 0, "died"]
+        ];
+
+        const parseYear = d => typeof d[1] === 'string' ? new Date(d[1]).getFullYear() : d[1];
+
+        const quartets = data.filter(d => d[2] > 0);
+        const birthDeath = data.filter(d => d[2] === 0);
+
+        const minYear = Math.min(...data.map(parseYear));
+        const maxYear = Math.max(...data.map(parseYear));
+
+        // Instagram Story dimensions: 1080x1920
+        const width = 1080;
+        const height = 1920;
+        const margin = {top: 180, right: 80, bottom: 100, left: 80};
+        const spacing = 20;
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        const yScale = y => margin.top + (y - minYear) / (maxYear - minYear) * chartHeight;
+
+        const colors = {
+            'Haydn': '#4A90E2',
+            'Boccherini': '#E27D60'
+        };
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', width);
+        svg.setAttribute('height', height);
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        document.getElementById('chart').appendChild(svg);
+
+        // Title
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        title.setAttribute('x', width / 2);
+        title.setAttribute('y', 90);
+        title.setAttribute('text-anchor', 'middle');
+        title.setAttribute('class', 'title');
+        title.textContent = 'Quartet Chronology';
+        svg.appendChild(title);
+
+        // Composer labels
+        const centerX = margin.left + chartWidth / 2;
+        const boccheriniOffset = 100;
+
+        const haydnLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        haydnLabel.setAttribute('x', centerX - 200);
+        haydnLabel.setAttribute('y', 150);
+        haydnLabel.setAttribute('text-anchor', 'middle');
+        haydnLabel.setAttribute('class', 'composer-label');
+        haydnLabel.textContent = 'Haydn';
+        svg.appendChild(haydnLabel);
+
+        const boccheriniLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        boccheriniLabel.setAttribute('x', centerX + boccheriniOffset + 200);
+        boccheriniLabel.setAttribute('y', 150);
+        boccheriniLabel.setAttribute('text-anchor', 'middle');
+        boccheriniLabel.setAttribute('class', 'composer-label');
+        boccheriniLabel.textContent = 'Boccherini';
+        svg.appendChild(boccheriniLabel);
+
+        // Y-axis (center lines)
+        const haydnAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        haydnAxisLine.setAttribute('x1', centerX);
+        haydnAxisLine.setAttribute('x2', centerX);
+        haydnAxisLine.setAttribute('y1', margin.top);
+        haydnAxisLine.setAttribute('y2', height - margin.bottom);
+        haydnAxisLine.setAttribute('stroke', '#ccc');
+        haydnAxisLine.setAttribute('stroke-width', '4');
+        svg.appendChild(haydnAxisLine);
+
+        const boccheriniAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        boccheriniAxisLine.setAttribute('x1', centerX + boccheriniOffset);
+        boccheriniAxisLine.setAttribute('x2', centerX + boccheriniOffset);
+        boccheriniAxisLine.setAttribute('y1', margin.top);
+        boccheriniAxisLine.setAttribute('y2', height - margin.bottom);
+        boccheriniAxisLine.setAttribute('stroke', '#ccc');
+        boccheriniAxisLine.setAttribute('stroke-width', '4');
+        svg.appendChild(boccheriniAxisLine);
+
+        // Gridlines only between the axes
+        for (let year = minYear; year <= maxYear; year++) {
+            const y = yScale(year);
+
+            const gridline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            gridline.setAttribute('x1', centerX);
+            gridline.setAttribute('x2', centerX + boccheriniOffset);
+            gridline.setAttribute('y1', y);
+            gridline.setAttribute('y2', y);
+            gridline.setAttribute('stroke', '#f0f0f0');
+            gridline.setAttribute('stroke-width', '2');
+            svg.appendChild(gridline);
+        }
+
+        for (let year = Math.ceil(minYear/5)*5; year <= maxYear; year += 5) {
+            const y = yScale(year);
+
+            const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            tick.setAttribute('x1', centerX);
+            tick.setAttribute('x2', centerX + boccheriniOffset);
+            tick.setAttribute('y1', y);
+            tick.setAttribute('y2', y);
+            tick.setAttribute('stroke', '#666');
+            tick.setAttribute('stroke-width', '3');
+            svg.appendChild(tick);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', centerX + boccheriniOffset/2);
+            text.setAttribute('y', y - 8);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('class', 'axis-label');
+            text.textContent = year;
+            svg.appendChild(text);
+        }
+
+        // Birth/death markers
+        birthDeath.forEach(d => {
+            const composer = d[0];
+            const year = parseYear(d);
+            const event = d[3];
+            const y = yScale(year);
+
+            const lineLength = 120;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            if (composer === 'Haydn') {
+                line.setAttribute('x1', centerX - lineLength);
+                line.setAttribute('x2', centerX);
+            } else {
+                line.setAttribute('x1', centerX + boccheriniOffset);
+                line.setAttribute('x2', centerX + boccheriniOffset + lineLength);
+            }
+            line.setAttribute('y1', y);
+            line.setAttribute('y2', y);
+            line.setAttribute('stroke', '#999');
+            line.setAttribute('stroke-dasharray', '8,8');
+            line.setAttribute('stroke-width', '3');
+            svg.appendChild(line);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', composer === 'Haydn' ? centerX - lineLength - 10 : centerX + boccheriniOffset + lineLength + 10);
+            text.setAttribute('y', y + 10);
+            text.setAttribute('text-anchor', composer === 'Haydn' ? 'end' : 'start');
+            text.setAttribute('class', 'marker-text');
+            text.textContent = event;
+            svg.appendChild(text);
+        });
+
+        // Bars
+        const barHeight = 16;
+        const maxBarWidth = chartWidth / 2 - 160;
+
+        quartets.forEach(d => {
+            const composer = d[0];
+            const year = d[1];
+            const count = d[2];
+            const opus = d[3];
+
+            const y = yScale(year);
+            const barWidth = Math.min((count / 6) * maxBarWidth, maxBarWidth);
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            if (composer === 'Haydn') {
+                rect.setAttribute('x', centerX - barWidth);
+                rect.setAttribute('width', barWidth);
+            } else {
+                rect.setAttribute('x', centerX + boccheriniOffset);
+                rect.setAttribute('width', barWidth);
+            }
+            rect.setAttribute('y', y - barHeight/2);
+            rect.setAttribute('height', barHeight);
+            rect.setAttribute('fill', colors[composer]);
+            rect.setAttribute('rx', '2');
+            rect.setAttribute('class', 'bar');
+
+            svg.appendChild(rect);
+
+            // Add opus label
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            if (composer === 'Haydn') {
+                label.setAttribute('x', centerX - barWidth - 15);
+                label.setAttribute('text-anchor', 'end');
+            } else {
+                label.setAttribute('x', centerX + boccheriniOffset + barWidth + 15);
+                label.setAttribute('text-anchor', 'start');
+            }
+            label.setAttribute('y', y + 10);
+            label.setAttribute('style', 'font-size: 28px; fill: #333; font-weight: 600;');
+            label.textContent = opus;
+            svg.appendChild(label);
+        });
+    </script>
+</body>
+</html>
