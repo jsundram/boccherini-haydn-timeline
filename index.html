@@ -60,32 +60,32 @@
             ["Haydn", 1769, 6, "9"],
             ["Boccherini", 1770, 6, "9"],
             ["Haydn", 1771, 6, "17"],
-            ["Boccherini", 1772, 6, "15"],
+            ["Boccherini", 1772, 6, "15", "piccola"],
             ["Haydn", 1772, 6, "20"],
-            ["Boccherini", 1775, 6, "22"],
+            ["Boccherini", 1775, 6, "22", "piccola"],
             ["Boccherini", 1777, 6, "24"],
-            ["Boccherini", 1778, 6, "26"],
+            ["Boccherini", 1778, 6, "26", "piccola"],
             ["Boccherini", 1780, 6, "32"],
-            ["Boccherini", 1781, 6, "33"],
+            ["Boccherini", 1781, 6, "33", "piccola"],
             ["Haydn", 1781, 6, "33"],
             ["Haydn", 1785, 1, "42"],
             ["Boccherini", 1787, 1, "39"],
             ["Haydn", 1787, 6, "50"],
             ["Boccherini", 1788, 2, "41"],
             ["Haydn", 1788, 6, "54/55"],
-            ["Boccherini", 1789, 2, "42"],
-            ["Boccherini", 1790, 2, "43"],
+            ["Boccherini", 1789, 2, "42", "piccola"],
+            ["Boccherini", 1790, 2, "43", "piccola"],
             ["Haydn", 1790, 6, "64"],
-            ["Boccherini", 1792, 6, "44"],
+            ["Boccherini", 1792, 6, "44", "piccola"],
             ["Haydn", 1793, 6, "71/74"],
-            ["Boccherini", 1794, 6, "48"],
+            ["Boccherini", 1794, 6, "48", "piccola"],
             ["Boccherini", 1795, 4, "52"],
-            ["Boccherini", 1796, 6, "53"],
+            ["Boccherini", 1796, 6, "53", "piccola"],
             ["Haydn", 1797, 6, "76"],
             ["Boccherini", 1799, 6, "58"],
             ["Haydn", 1799, 2, "77"],
             ["Haydn", 1803, 0.5, "103"],
-            ["Boccherini", 1804, 1.25, "64"],
+            ["Boccherini", 1804, 1 + 1/3, "64"],
             ["Boccherini", "1805-05-28", 0, "died"],
             ["Haydn", "1809-05-31", 0, "died"]
         ];
@@ -119,6 +119,11 @@
             'Boccherini': '#F4C6B8'
         };
 
+        // Boccherini's quartettini (opera piccola) get a lighter shade of
+        // his orange, with a correspondingly lighter tick.
+        const piccolaColor = '#FDC396';
+        const piccolaTickColor = '#FEDABE';
+
         const maxBarWidth = chartWidth / 2 - 160;
         const maxCount = Math.max(...quartets.map(d => d[2]));
 
@@ -135,7 +140,7 @@
         title.setAttribute('y', 70);
         title.setAttribute('text-anchor', 'middle');
         title.setAttribute('class', 'title');
-        title.textContent = 'Quartet Chronology';
+        title.textContent = 'Two Lives in Quartets';
         svg.appendChild(title);
 
         // Composer labels
@@ -162,12 +167,16 @@
         boccheriniLabel.textContent = 'Boccherini';
         svg.appendChild(boccheriniLabel);
 
-        // Y-axis (center lines)
+        // Y-axis (center lines) — each spine is the composer's life-line,
+        // running from the birth marker to the death marker.
+        const lifeYear = (composer, event) =>
+            parseYear(birthDeath.find(d => d[0] === composer && d[3] === event));
+
         const haydnAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         haydnAxisLine.setAttribute('x1', centerX);
         haydnAxisLine.setAttribute('x2', centerX);
-        haydnAxisLine.setAttribute('y1', margin.top);
-        haydnAxisLine.setAttribute('y2', height - margin.bottom);
+        haydnAxisLine.setAttribute('y1', yScale(lifeYear('Haydn', 'born')));
+        haydnAxisLine.setAttribute('y2', yScale(lifeYear('Haydn', 'died')));
         haydnAxisLine.setAttribute('stroke', '#ccc');
         haydnAxisLine.setAttribute('stroke-width', '4');
         svg.appendChild(haydnAxisLine);
@@ -175,8 +184,8 @@
         const boccheriniAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         boccheriniAxisLine.setAttribute('x1', centerX + boccheriniOffset);
         boccheriniAxisLine.setAttribute('x2', centerX + boccheriniOffset);
-        boccheriniAxisLine.setAttribute('y1', margin.top);
-        boccheriniAxisLine.setAttribute('y2', height - margin.bottom);
+        boccheriniAxisLine.setAttribute('y1', yScale(lifeYear('Boccherini', 'born')));
+        boccheriniAxisLine.setAttribute('y2', yScale(lifeYear('Boccherini', 'died')));
         boccheriniAxisLine.setAttribute('stroke', '#ccc');
         boccheriniAxisLine.setAttribute('stroke-width', '4');
         svg.appendChild(boccheriniAxisLine);
@@ -256,30 +265,49 @@
             const year = d[1];
             const count = d[2];
             const opus = d[3];
+            const piccola = d[4] === 'piccola';
 
             const y = yScale(year);
             const barWidth = (count / maxCount) * maxBarWidth;
 
-            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-            if (composer === 'Haydn') {
-                rect.setAttribute('x', centerX - barWidth);
-                rect.setAttribute('width', barWidth);
-            } else {
-                rect.setAttribute('x', centerX + boccheriniOffset);
-                rect.setAttribute('width', barWidth);
-            }
-            rect.setAttribute('y', y - barHeight/2);
-            rect.setAttribute('height', barHeight);
-            rect.setAttribute('fill', colors[composer]);
-            rect.setAttribute('rx', '2');
-            rect.setAttribute('class', 'bar');
+            const unit = maxBarWidth / maxCount;
+            const fill = piccola ? piccolaColor : colors[composer];
 
-            svg.appendChild(rect);
+            // Bar segment spanning [from, to] pixels out from the spine.
+            const segment = (from, to) => {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', composer === 'Haydn'
+                    ? centerX - to
+                    : centerX + boccheriniOffset + from);
+                rect.setAttribute('width', to - from);
+                rect.setAttribute('y', y - barHeight/2);
+                rect.setAttribute('height', barHeight);
+                rect.setAttribute('rx', '2');
+                rect.setAttribute('class', 'bar');
+                svg.appendChild(rect);
+                return rect;
+            };
+
+            // Completed quartets are solid; an unfinished one (the fractional
+            // part, e.g. Haydn Op. 103, Boccherini Op. 64 No. 2) is drawn as
+            // an outline, inset by half the stroke so its outer edge lands
+            // where a solid bar's would.
+            const whole = Math.floor(count);
+            const solidWidth = whole * unit;
+            if (whole > 0) segment(0, solidWidth).setAttribute('fill', fill);
+            if (count > whole) {
+                const sw = 3;
+                const outline = segment(solidWidth + sw/2, barWidth - sw/2);
+                outline.setAttribute('y', y - barHeight/2 + sw/2);
+                outline.setAttribute('height', barHeight - sw);
+                outline.setAttribute('fill', '#fff');
+                outline.setAttribute('stroke', fill);
+                outline.setAttribute('stroke-width', sw);
+            }
 
             // Division ticks: one segment per quartet, counted out from the
             // spine, so a 6-quartet opus reads as 6 sub-bars.
-            const unit = maxBarWidth / maxCount;
-            for (let k = 1; k < count; k++) {
+            for (let k = 1; k < whole; k++) {
                 const x = composer === 'Haydn'
                     ? centerX - k * unit
                     : centerX + boccheriniOffset + k * unit;
@@ -288,7 +316,7 @@
                 tick.setAttribute('x2', x);
                 tick.setAttribute('y1', y - barHeight/2);
                 tick.setAttribute('y2', y + barHeight/2);
-                tick.setAttribute('stroke', tickColors[composer]);
+                tick.setAttribute('stroke', piccola ? piccolaTickColor : tickColors[composer]);
                 tick.setAttribute('stroke-width', '3');
                 svg.appendChild(tick);
             }
