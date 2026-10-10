@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>String Quartets Timeline</title>
+    <title>Two Lives in Quartets</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -18,38 +21,23 @@
         #chart {
             background: #fff;
             width: 100%;
-            max-width: 1080px;
-            aspect-ratio: 9/16;
         }
-        .axis-label {
-            font-size: 32px;
-            fill: #333;
-            font-weight: 500;
-        }
-        .composer-label {
-            font-size: 48px;
-            font-weight: 700;
-            fill: #000;
+        #chart svg {
+            display: block;
+            width: 100%;
+            height: auto;
         }
         .bar {
             cursor: pointer;
-        }
-        .marker-text {
-            font-size: 28px;
-            fill: #666;
-            font-weight: 600;
-        }
-        .title {
-            font-size: 64px;
-            font-weight: 800;
-            fill: #000;
         }
     </style>
 </head>
 <body>
     <div id="chart"></div>
 
-    <script>
+    <!-- A module script, so it can wait for the web font before measuring
+         any text. Offline, the serif falls back to Georgia. -->
+    <script type="module">
         const data = [
             ["Haydn", "1732-03-31", 0, "born"],
             ["Boccherini", "1743-02-19", 0, "born"],
@@ -90,203 +78,297 @@
             ["Haydn", "1809-05-31", 0, "died"]
         ];
 
+        // Movements per opus. Boccherini's are tallied from opera.json;
+        // Haydn's Opp. 1 and 2 have five movements per quartet, the rest
+        // four, and the unfinished Op. 103 has two.
+        const boccheriniMovements = {
+            '2': 18, '8': 18, '9': 20, '15': 12, '22': 12, '24': 18, '26': 12,
+            '32': 23, '33': 12, '39': 4, '41': 8, '42': 4, '43': 4, '44': 14,
+            '48': 12, '52': 16, '53': 12, '58': 20, '64': 4
+        };
+
+        // ---- Design constants -------------------------------------------
+        // Everything below is laid out in design units on a 1080 × 1920
+        // canvas. Each output format then fits the drawing to its own page,
+        // centered, with whitespace on the long sides as needed.
+        const design = {
+            width: 1080,
+            height: 1920,
+            formats: {
+                story:  {width: 1080, height: 1920},  // 9:16 social story
+                letter: {width: 816,  height: 1056},  // US Letter at 96 dpi
+                a4:     {width: 794,  height: 1123}   // A4 at 96 dpi
+            },
+            fonts: {
+                serif: "'Source Serif 4', Georgia, 'Times New Roman', serif",
+                sans: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            },
+            colors: {
+                'Haydn': '#4A90E2',
+                'Boccherini': '#E27D60',
+                piccola: '#FDC396',        // Boccherini's quartettini bars
+                ink: '#222',               // title, descriptive lines
+                muted: '#777',             // tagline, lifespans, labels
+                spine: '#ccc',
+                gridline: '#f0f0f0',
+                tick: '#666'
+            },
+            // Lighter hue of each bar color, used for the division ticks.
+            tickColors: {
+                'Haydn': '#B7D3F3',
+                'Boccherini': '#F4C6B8',
+                piccola: '#FEDABE'
+            },
+            header: {
+                titleY: 108, titleSize: 84,
+                nameY: 232, nameSize: 66,
+                lifespanY: 276, lifespanSize: 30
+            },
+            timeline: {
+                top: 370,              // y of the first (padded) year
+                padYears: 2,           // before the first quartet, after the last
+                leadIn: 2.5,           // dotted spine above the first year, in years
+                dots: '0 10',          // dash pattern for the dotted spine
+                spineGap: 150,         // the year column between the spines
+                sideMargin: 80,
+                barHeight: 16,
+                ageSize: 24,           // "age 26" annotations
+                yearSize: 44,
+                yearWeight: 600,
+                yearStubGap: 8,        // between a year label and its tick stubs
+                opusSize: 28,
+                figureCenter: 0.34     // half the height of a figure, in ems,
+                                       // for centering numbers on a line
+            },
+            summary: {
+                gapAbove: 104,         // last timeline year to top of hero numbers
+                bottomMargin: 72,
+                columnGap: 40,         // between the two columns
+                heroSize: 132,
+                descSize: 36,          // shrinks on both sides at once if needed
+                descLeading: 44,       // between the lines of a two-line description
+                movementScale: 0.5,    // movement number, relative to hero
+                movementLabelSize: 26,
+                // Shared rows, baseline to baseline.
+                heroToDesc: 62,
+                descToDivider: 46,
+                dividerToMovements: 78,
+                dividerWidth: 56,
+                dividerOpacity: 0.3,
+                // Text colors. Movement numbers use a deeper shade of the
+                // lighter bar hue so they stay legible as text.
+                movementColors: {'Haydn': '#7AACE8', 'Boccherini': '#F2A673'},
+                quartettiniColor: '#F2A673',
+                outline: 1 / 36,       // hollow-digit stroke, in ems
+                minOutline: 1.6,       // ...but never thinner than this, in px
+                overbarRaise: 0.71     // overbar height above baseline, in ems
+            }
+        };
+
+        await Promise.all(['400', '600', '700', 'italic 400'].map(w =>
+            document.fonts.load(`${w} 32px 'Source Serif 4'`)));
+
+        // ---- Data helpers -----------------------------------------------
         const parseYear = d => typeof d[1] === 'string' ? new Date(d[1]).getFullYear() : d[1];
 
         const quartets = data.filter(d => d[2] > 0);
         const birthDeath = data.filter(d => d[2] === 0);
+        const lifeYear = (composer, event) =>
+            parseYear(birthDeath.find(d => d[0] === composer && d[3] === event));
 
-        const minYear = Math.min(...data.map(parseYear));
-        const maxYear = Math.max(...data.map(parseYear));
-
-        // Instagram Story dimensions: 1080x1920
-        const width = 1080;
-        const height = 1920;
-        const margin = {top: 180, right: 80, bottom: 100, left: 80};
-        const spacing = 20;
-        const chartWidth = width - margin.left - margin.right;
-        const chartHeight = height - margin.top - margin.bottom;
-
-        const yScale = y => margin.top + (y - minYear) / (maxYear - minYear) * chartHeight;
-
-        const colors = {
-            'Haydn': '#4A90E2',
-            'Boccherini': '#E27D60'
+        const isPiccola = d => d[4] === 'piccola';
+        const movementCount = d => {
+            if (d[0] === 'Boccherini') return boccheriniMovements[d[3]];
+            if (d[3] === '103') return 2;
+            return d[2] * (d[3] === '1' || d[3] === '2' ? 5 : 4);
         };
+        const total = (composer, fn) => quartets
+            .filter(d => d[0] === composer)
+            .reduce((sum, d) => sum + fn(d), 0);
+        const firstQuartet = composer => quartets.find(d => d[0] === composer);
 
-        // Lighter hue of each composer color, used for the division ticks.
-        const tickColors = {
-            'Haydn': '#B7D3F3',
-            'Boccherini': '#F4C6B8'
-        };
+        // ---- Geometry -----------------------------------------------------
+        const {width, height, colors, tickColors} = design;
+        const T = design.timeline, S = design.summary, H = design.header;
 
-        // Boccherini's quartettini (opera piccola) get a lighter shade of
-        // his orange, with a correspondingly lighter tick.
-        const piccolaColor = '#FDC396';
-        const piccolaTickColor = '#FEDABE';
+        // The timeline is cropped to the years of quartet writing, padded.
+        const minYear = Math.min(...quartets.map(d => d[1])) - T.padYears;
+        const maxYear = Math.max(...quartets.map(d => d[1])) + T.padYears;
+
+        const chartWidth = width - 2 * T.sideMargin;
+        const centerX = T.sideMargin + chartWidth / 2;
+        const boccheriniOffset = T.spineGap;
+        const spineX = {'Haydn': centerX, 'Boccherini': centerX + boccheriniOffset};
+        const midX = centerX + boccheriniOffset / 2;   // the optical center
+        const out = composer => composer === 'Haydn' ? -1 : 1;  // outward from spine
 
         const maxBarWidth = chartWidth / 2 - 160;
         const maxCount = Math.max(...quartets.map(d => d[2]));
 
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', width);
-        svg.setAttribute('height', height);
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        // Each composer's column (header, bars, summary) is centered on the
+        // middle of the bar column.
+        const columnX = composer => spineX[composer] + out(composer) * maxBarWidth / 2;
+
+        // Summary rows are laid out bottom-up from the page margin, and the
+        // timeline takes whatever height is left above them.
+        const movementSize = S.heroSize * S.movementScale;
+        const rows = {};
+        rows.movements = height - S.bottomMargin - 0.25 * movementSize;
+        rows.divider = rows.movements - S.dividerToMovements;
+        rows.desc = rows.divider - S.descToDivider - S.descLeading;  // first line
+        rows.hero = rows.desc - S.heroToDesc;
+        const timelineBottom = rows.hero - 0.72 * S.heroSize - S.gapAbove;
+
+        const yScale = y => T.top + (y - minYear) / (maxYear - minYear) * (timelineBottom - T.top);
+
+        // ---- SVG helpers -------------------------------------------------
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
         document.getElementById('chart').appendChild(svg);
 
-        // Title — anchored to the optical center (midpoint of the two axis
-        // spines), not the canvas center, so it reads as centered.
-        const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        title.setAttribute('x', margin.left + chartWidth / 2 + 50);
-        title.setAttribute('y', 70);
-        title.setAttribute('text-anchor', 'middle');
-        title.setAttribute('class', 'title');
-        title.textContent = 'Two Lives in Quartets';
-        svg.appendChild(title);
+        const el = (name, attrs = {}) => {
+            const node = document.createElementNS(NS, name);
+            Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+            svg.appendChild(node);
+            return node;
+        };
+        const line = (x1, y1, x2, y2, stroke, strokeWidth, extra = {}) =>
+            el('line', {x1, y1, x2, y2, stroke, 'stroke-width': strokeWidth, ...extra});
 
-        // Composer labels
-        const centerX = margin.left + chartWidth / 2;
-        const boccheriniOffset = 100;
+        // Visible outline width for a hollow digit at a given size.
+        const outlineWidth = size => Math.max(S.outline * size, S.minOutline);
 
-        // Each label is centered over its own bar column and tinted with the
-        // composer's bar color to tie the header to the data.
-        const haydnLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        haydnLabel.setAttribute('x', centerX - maxBarWidth / 2);
-        haydnLabel.setAttribute('y', 150);
-        haydnLabel.setAttribute('text-anchor', 'middle');
-        haydnLabel.setAttribute('class', 'composer-label');
-        haydnLabel.setAttribute('style', `fill: ${colors['Haydn']}`);
-        haydnLabel.textContent = 'Haydn';
-        svg.appendChild(haydnLabel);
+        // Text from styled runs, each a tspan:
+        //   {text, color, size, weight, italic, hollow, repeat}
+        // A hollow run is outlined like an unfinished quartet's bar; a
+        // repeat run also gets an overbar (drawn by addOverbars once the
+        // text is in its final place).
+        const runsText = (x, y, runs, {anchor = 'middle', family = design.fonts.serif,
+                                       size, color = design.colors.ink, weight = 400} = {}) => {
+            const text = el('text', {x, y, 'text-anchor': anchor});
+            text.style.fontFamily = family;
+            text.style.fontSize = `${size}px`;
+            text.style.fill = color;
+            text.style.fontWeight = weight;
+            text.runs = runs.map(run => {
+                const span = document.createElementNS(NS, 'tspan');
+                span.textContent = run.text;
+                const runSize = run.size || size;
+                if (run.size) span.style.fontSize = `${run.size}px`;
+                if (run.weight) span.style.fontWeight = run.weight;
+                if (run.italic) span.style.fontStyle = 'italic';
+                if (run.hollow) {
+                    // The stroke is painted under the white fill, so only
+                    // its outer half shows; that hides the seams where the
+                    // font's glyph contours overlap.
+                    span.style.fill = '#fff';
+                    span.style.stroke = run.color;
+                    span.style.strokeWidth = `${2 * outlineWidth(runSize)}px`;
+                    span.style.paintOrder = 'stroke';
+                    span.style.strokeLinejoin = 'round';
+                } else if (run.color) {
+                    span.style.fill = run.color;
+                }
+                text.appendChild(span);
+                return {...run, span, size: runSize};
+            });
+            return text;
+        };
 
-        const boccheriniLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        boccheriniLabel.setAttribute('x', centerX + boccheriniOffset + maxBarWidth / 2);
-        boccheriniLabel.setAttribute('y', 150);
-        boccheriniLabel.setAttribute('text-anchor', 'middle');
-        boccheriniLabel.setAttribute('class', 'composer-label');
-        boccheriniLabel.setAttribute('style', `fill: ${colors['Boccherini']}`);
-        boccheriniLabel.textContent = 'Boccherini';
-        svg.appendChild(boccheriniLabel);
+        const addOverbars = text => text.runs.filter(r => r.repeat).forEach(r => {
+            const box = r.span.getBBox();
+            const inset = 0.08 * box.width;
+            const y = Number(text.getAttribute('y')) - S.overbarRaise * r.size;
+            line(box.x + inset, y, box.x + box.width - inset, y,
+                 r.color, outlineWidth(r.size) * 1.2);
+        });
 
-        // Y-axis (center lines) — each spine is the composer's life-line,
-        // running from the birth marker to the death marker.
-        const lifeYear = (composer, event) =>
-            parseYear(birthDeath.find(d => d[0] === composer && d[3] === event));
+        // A number as runs: whole part, then any fractional digit drawn
+        // hollow (a repeating third gets an overbar too).
+        const numberRuns = (value, color, extra = {}) => {
+            const whole = Math.floor(value);
+            const frac = value - whole;
+            if (frac < 1e-9) return [{text: `${whole}`, color, ...extra}];
+            const third = Math.abs(frac - 1/3) < 1e-9;
+            return [{text: `${whole}.`, color, ...extra},
+                    {text: third ? '3' : `${Math.round(frac * 10)}`, color,
+                     hollow: true, repeat: third, ...extra}];
+        };
 
-        const haydnAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        haydnAxisLine.setAttribute('x1', centerX);
-        haydnAxisLine.setAttribute('x2', centerX);
-        haydnAxisLine.setAttribute('y1', yScale(lifeYear('Haydn', 'born')));
-        haydnAxisLine.setAttribute('y2', yScale(lifeYear('Haydn', 'died')));
-        haydnAxisLine.setAttribute('stroke', '#ccc');
-        haydnAxisLine.setAttribute('stroke-width', '4');
-        svg.appendChild(haydnAxisLine);
+        // ---- Header -----------------------------------------------------
+        // The title is centered on the optical center (the spine
+        // midpoint), not the canvas center.
+        runsText(midX, H.titleY, [{text: 'Two Lives in Quartets'}],
+                 {size: H.titleSize, weight: 700});
 
-        const boccheriniAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        boccheriniAxisLine.setAttribute('x1', centerX + boccheriniOffset);
-        boccheriniAxisLine.setAttribute('x2', centerX + boccheriniOffset);
-        boccheriniAxisLine.setAttribute('y1', yScale(lifeYear('Boccherini', 'born')));
-        boccheriniAxisLine.setAttribute('y2', yScale(lifeYear('Boccherini', 'died')));
-        boccheriniAxisLine.setAttribute('stroke', '#ccc');
-        boccheriniAxisLine.setAttribute('stroke-width', '4');
-        svg.appendChild(boccheriniAxisLine);
+        ['Haydn', 'Boccherini'].forEach(composer => {
+            runsText(columnX(composer), H.nameY, [{text: composer}],
+                     {size: H.nameSize, weight: 700, color: colors[composer]});
+            runsText(columnX(composer), H.lifespanY,
+                     [{text: `${lifeYear(composer, 'born')}–${lifeYear(composer, 'died')}`}],
+                     {size: H.lifespanSize, color: design.colors.muted});
+        });
+
+        // ---- Timeline ---------------------------------------------------
+        // Each spine is solid over the cropped range, up to the composer's
+        // death, so Boccherini's stops in 1805. Dots carry both lives back
+        // before the range, and Haydn's on past it to his death in 1809.
+        const dotted = {'stroke-dasharray': T.dots, 'stroke-linecap': 'round'};
+        Object.entries(spineX).forEach(([composer, x]) => {
+            const died = lifeYear(composer, 'died');
+            line(x, yScale(minYear), x, yScale(Math.min(maxYear, died)),
+                 design.colors.spine, 4);
+            line(x, yScale(minYear - T.leadIn), x, yScale(minYear),
+                 design.colors.spine, 4, dotted);
+            if (died > maxYear)
+                line(x, yScale(maxYear), x, yScale(died), design.colors.spine, 4, dotted);
+        });
+
+        // Every five years, the year sits centered on its line, between two
+        // short tick stubs that come in from the spines.
+        const isTickYear = year => year % 5 === 0;
+        const numberY = (y, size) => y + T.figureCenter * size;
 
         // Gridlines only between the axes
         for (let year = minYear; year <= maxYear; year++) {
+            if (isTickYear(year)) continue;
             const y = yScale(year);
-
-            const gridline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            gridline.setAttribute('x1', centerX);
-            gridline.setAttribute('x2', centerX + boccheriniOffset);
-            gridline.setAttribute('y1', y);
-            gridline.setAttribute('y2', y);
-            gridline.setAttribute('stroke', '#f0f0f0');
-            gridline.setAttribute('stroke-width', '2');
-            svg.appendChild(gridline);
+            line(centerX, y, centerX + boccheriniOffset, y, design.colors.gridline, 2);
         }
 
-        for (let year = Math.ceil(minYear/5)*5; year <= maxYear; year += 5) {
+        for (let year = minYear; year <= maxYear; year++) {
+            if (!isTickYear(year)) continue;
             const y = yScale(year);
-
-            const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            tick.setAttribute('x1', centerX);
-            tick.setAttribute('x2', centerX + boccheriniOffset);
-            tick.setAttribute('y1', y);
-            tick.setAttribute('y2', y);
-            tick.setAttribute('stroke', '#666');
-            tick.setAttribute('stroke-width', '3');
-            svg.appendChild(tick);
-
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', centerX + boccheriniOffset/2);
-            text.setAttribute('y', y - 8);
-            text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('class', 'axis-label');
-            text.textContent = year;
-            svg.appendChild(text);
+            const label = runsText(midX, numberY(y, T.yearSize), [{text: `${year}`}],
+                                   {size: T.yearSize, weight: T.yearWeight});
+            const half = label.getComputedTextLength() / 2 + T.yearStubGap;
+            line(centerX, y, midX - half, y, design.colors.tick, 3);
+            line(midX + half, y, centerX + boccheriniOffset, y, design.colors.tick, 3);
         }
-
-        // Birth/death markers
-        birthDeath.forEach(d => {
-            const composer = d[0];
-            const year = parseYear(d);
-            const event = d[3];
-            const y = yScale(year);
-
-            const lineLength = 120;
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            if (composer === 'Haydn') {
-                line.setAttribute('x1', centerX - lineLength);
-                line.setAttribute('x2', centerX);
-            } else {
-                line.setAttribute('x1', centerX + boccheriniOffset);
-                line.setAttribute('x2', centerX + boccheriniOffset + lineLength);
-            }
-            line.setAttribute('y1', y);
-            line.setAttribute('y2', y);
-            line.setAttribute('stroke', '#999');
-            line.setAttribute('stroke-dasharray', '8,8');
-            line.setAttribute('stroke-width', '3');
-            svg.appendChild(line);
-
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', composer === 'Haydn' ? centerX - lineLength - 10 : centerX + boccheriniOffset + lineLength + 10);
-            text.setAttribute('y', y + 10);
-            text.setAttribute('text-anchor', composer === 'Haydn' ? 'end' : 'start');
-            text.setAttribute('class', 'marker-text');
-            text.textContent = event;
-            svg.appendChild(text);
-        });
 
         // Bars
-        const barHeight = 16;
+        const barHeight = T.barHeight;
+        const unit = maxBarWidth / maxCount;
 
         quartets.forEach(d => {
-            const composer = d[0];
-            const year = d[1];
-            const count = d[2];
-            const opus = d[3];
-            const piccola = d[4] === 'piccola';
+            const [composer, year, count, opus] = d;
+            const piccola = isPiccola(d);
+            const spine = spineX[composer];
+            const dir = out(composer);
 
             const y = yScale(year);
-            const barWidth = (count / maxCount) * maxBarWidth;
-
-            const unit = maxBarWidth / maxCount;
-            const fill = piccola ? piccolaColor : colors[composer];
+            const barWidth = count * unit;
+            const fill = piccola ? colors.piccola : colors[composer];
 
             // Bar segment spanning [from, to] pixels out from the spine.
-            const segment = (from, to) => {
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', composer === 'Haydn'
-                    ? centerX - to
-                    : centerX + boccheriniOffset + from);
-                rect.setAttribute('width', to - from);
-                rect.setAttribute('y', y - barHeight/2);
-                rect.setAttribute('height', barHeight);
-                rect.setAttribute('rx', '2');
-                rect.setAttribute('class', 'bar');
-                svg.appendChild(rect);
-                return rect;
-            };
+            const segment = (from, to) => el('rect', {
+                x: dir < 0 ? spine - to : spine + from,
+                width: to - from,
+                y: y - barHeight / 2,
+                height: barHeight,
+                rx: 2,
+                class: 'bar'
+            });
 
             // Completed quartets are solid; an unfinished one (the fractional
             // part, e.g. Haydn Op. 103, Boccherini Op. 64 No. 2) is drawn as
@@ -297,8 +379,8 @@
             if (whole > 0) segment(0, solidWidth).setAttribute('fill', fill);
             if (count > whole) {
                 const sw = 3;
-                const outline = segment(solidWidth + sw/2, barWidth - sw/2);
-                outline.setAttribute('y', y - barHeight/2 + sw/2);
+                const outline = segment(solidWidth + sw / 2, barWidth - sw / 2);
+                outline.setAttribute('y', y - barHeight / 2 + sw / 2);
                 outline.setAttribute('height', barHeight - sw);
                 outline.setAttribute('fill', '#fff');
                 outline.setAttribute('stroke', fill);
@@ -308,50 +390,108 @@
             // Division ticks: one segment per quartet, counted out from the
             // spine, so a 6-quartet opus reads as 6 sub-bars.
             for (let k = 1; k < whole; k++) {
-                const x = composer === 'Haydn'
-                    ? centerX - k * unit
-                    : centerX + boccheriniOffset + k * unit;
-                const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                tick.setAttribute('x1', x);
-                tick.setAttribute('x2', x);
-                tick.setAttribute('y1', y - barHeight/2);
-                tick.setAttribute('y2', y + barHeight/2);
-                tick.setAttribute('stroke', piccola ? piccolaTickColor : tickColors[composer]);
-                tick.setAttribute('stroke-width', '3');
-                svg.appendChild(tick);
+                const x = spine + dir * k * unit;
+                line(x, y - barHeight / 2, x, y + barHeight / 2,
+                     piccola ? tickColors.piccola : tickColors[composer], 3);
             }
 
-            // Add opus label
-            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            if (composer === 'Haydn') {
-                label.setAttribute('x', centerX - barWidth - 8);
-                label.setAttribute('text-anchor', 'end');
-            } else {
-                label.setAttribute('x', centerX + boccheriniOffset + barWidth + 8);
-                label.setAttribute('text-anchor', 'start');
+            // Opus label
+            runsText(spine + dir * (barWidth + 8), numberY(y, T.opusSize), [{text: opus}],
+                     {anchor: dir < 0 ? 'end' : 'start', size: T.opusSize,
+                      color: '#333', weight: 600});
+
+            // Age at the composer's first quartet, resting on top of the
+            // bar at its outer end. Opus dates are years only, so this is
+            // the year difference.
+            if (d === firstQuartet(composer)) {
+                runsText(spine + dir * barWidth, y - barHeight / 2 - 7,
+                         [{text: `age ${year - lifeYear(composer, 'born')}`, italic: true}],
+                         {anchor: dir < 0 ? 'start' : 'end',
+                          size: T.ageSize, color: design.colors.muted});
             }
-            label.setAttribute('y', y + 9);
-            label.setAttribute('style', 'font-size: 26px; fill: #333; font-weight: 600;');
-            label.textContent = opus;
-            svg.appendChild(label);
         });
 
-        // Re-fit the viewBox to the drawn content, extended to the 9:16
-        // canvas. Horizontal centering anchors on the structural center (the
-        // spine midpoint) rather than the ink bounding box — Haydn's opus
-        // labels are wider than Boccherini's, and centering on ink would
-        // push the axis column visibly off-center. Vertical centering uses
-        // the ink bounds. Self-corrects as the data changes.
+        // ---- Summary ----------------------------------------------------
+        // Two instances of the same component, one per column, on shared
+        // rows: hero number, descriptive line, divider, movements.
+        const summary = {
+            'Haydn': {
+                hero: total('Haydn', d => d[2]),
+                desc: [[{text: 'quartets'}]]
+            },
+            'Boccherini': {
+                hero: total('Boccherini', d => d[2]),
+                desc: [[
+                    {text: 'quartets ('},
+                    ...numberRuns(total('Boccherini', d => isPiccola(d) ? 0 : d[2]),
+                                  colors['Boccherini'], {weight: 600}),
+                    {text: ')'}
+                ], [
+                    {text: '+ quartettini ('},
+                    ...numberRuns(total('Boccherini', d => isPiccola(d) ? d[2] : 0),
+                                  S.quartettiniColor, {weight: 600}),
+                    {text: ')'}
+                ]]
+            }
+        };
+        const columnWidth = 2 * (columnX('Boccherini') - midX) - S.columnGap;
+
+        // Descriptive lines: one size for all, shrunk together if the
+        // longest one won't fit its column.
+        const descs = Object.entries(summary).flatMap(([composer, s]) =>
+            s.desc.map((runs, i) => runsText(columnX(composer), rows.desc + i * S.descLeading,
+                                             runs, {size: S.descSize})));
+        const widestDesc = Math.max(...descs.map(t => t.getComputedTextLength()));
+        if (widestDesc > columnWidth) {
+            const descSize = S.descSize * columnWidth / widestDesc;
+            descs.forEach(t => {
+                t.style.fontSize = `${descSize}px`;
+                t.runs.forEach(r => {
+                    r.size = descSize;
+                    if (r.hollow) r.span.style.strokeWidth = `${2 * outlineWidth(descSize)}px`;
+                });
+            });
+        }
+        descs.forEach(addOverbars);
+
+        Object.entries(summary).forEach(([composer, s]) => {
+            const x = columnX(composer);
+            addOverbars(runsText(x, rows.hero, numberRuns(s.hero, colors[composer]),
+                                 {size: S.heroSize, weight: 700}));
+            line(x - S.dividerWidth / 2, rows.divider, x + S.dividerWidth / 2, rows.divider,
+                 design.colors.ink, 1.5, {'stroke-opacity': S.dividerOpacity});
+            runsText(x, rows.movements, [
+                ...numberRuns(total(composer, movementCount), S.movementColors[composer],
+                              {size: movementSize, weight: 700}),
+                {text: ' movements', size: S.movementLabelSize, color: design.colors.muted}
+            ], {size: S.movementLabelSize});
+        });
+
+        // ---- Fit to the output format -----------------------------------
+        // Re-fit the viewBox to the drawn content, extended to the format's
+        // aspect ratio. Horizontal centering anchors on the structural
+        // center (the spine midpoint) rather than the ink bounding box —
+        // Haydn's opus labels are wider than Boccherini's, and centering on
+        // ink would push the axis column visibly off-center. Vertical
+        // centering uses the ink bounds. Self-corrects as the data changes.
+        const formatName = new URLSearchParams(location.search).get('format') || 'story';
+        const format = design.formats[formatName] || design.formats.story;
+        svg.setAttribute('width', format.width);
+        svg.setAttribute('height', format.height);
+        const chart = document.getElementById('chart');
+        chart.style.maxWidth = `${format.width}px`;
+        chart.style.aspectRatio = `${format.width} / ${format.height}`;
+
         const bbox = svg.getBBox();
         const pad = 40;
-        const cx = centerX + boccheriniOffset / 2;
-        const half = Math.max(cx - (bbox.x - pad), (bbox.x + bbox.width + pad) - cx);
+        const half = Math.max(midX - (bbox.x - pad), (bbox.x + bbox.width + pad) - midX);
         let vw = 2 * half;
         let vh = bbox.height + 2 * pad;
-        const aspect = width / height;
+        const aspect = format.width / format.height;
         if (vw / vh < aspect) vw = vh * aspect; else vh = vw / aspect;
         svg.setAttribute('viewBox',
-            `${cx - vw / 2} ${bbox.y + bbox.height / 2 - vh / 2} ${vw} ${vh}`);
+            `${midX - vw / 2} ${bbox.y + bbox.height / 2 - vh / 2} ${vw} ${vh}`);
+        svg.dataset.ready = 'true';
     </script>
 </body>
 </html>

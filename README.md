@@ -24,22 +24,32 @@ npx playwright install chromium
 npm run capture
 ```
 
-The page centers the fixed-size 1080x1920 chart on a black background, so
-naive window screenshots letterbox it. The script instead finds the chart
-element itself (largest inline `<svg>`, or `--selector`), sizes the viewport
-to exactly its natural dimensions, and writes to `output/`:
+The page lays itself out for a page format chosen with `?format=`:
+`story` (1080x1920, the default), `letter` (US Letter) or `a4`. The script
+captures each format in turn. It finds the chart element itself (largest
+inline `<svg>`, or `--selector`), sizes the viewport to exactly its natural
+dimensions, and writes to `output/`:
 
-- `timeline.png` — the chart alone at 2x resolution (2160x3840)
-- `timeline.svg` — the chart as a standalone vector, page styles inlined
-- `timeline.pdf` — single-page PDF sized exactly to the chart
+- `timeline.{png,svg,pdf}` — story format; PNG at 2x (2160x3840)
+- `timeline-letter.{png,svg,pdf}` — US Letter; PNG at 300 dpi (2550x3300)
+- `timeline-a4.{png,svg,pdf}` — A4; PNG at 300 dpi (2481x3509)
+
+The SVGs have page styles inlined and import the web font, and each PDF
+is a single page sized exactly to its format.
 
 Options:
 
 ```sh
+node capture.mjs --format letter       # just one format
 node capture.mjs --selector "#chart"   # explicit capture target
-node capture.mjs --scale 3             # higher-res PNG (default 2)
+node capture.mjs --scale 3             # override the PNG scale
 node capture.mjs --file other.html
 ```
+
+The title, composer names and summary use Source Serif 4 from Google
+Fonts; offline, they fall back to Georgia. Design constants (type sizes,
+spacing, colors, summary rows) live in the `design` object at the top of
+the script in `index.html`.
 
 ## View locally
 
